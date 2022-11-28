@@ -162,7 +162,7 @@ def add_png(foreground, background, mode=None):
         current_background = current_background.astype(float)
         current_foreground = numpy.array(foreground)
         current_foreground = current_foreground.astype(float)
-        screen_result = screen(current_background, current_foreground)
+        screen_result = screen(current_background, current_foreground, 1.0)
         screen_result = numpy.uint8(screen_result)
         output = Image.fromarray(screen_result)
     else:
