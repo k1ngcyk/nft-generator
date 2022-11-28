@@ -21,15 +21,8 @@ class Component:
 
 description = "This is a description"
 layers = ["Background",
-          "Bed",
-          "Pillow",
-          "Skin Color",
-          "Head",
-          "Expression",
-          "Sheet",
-          "Arms & Body",
-          "Device",
-          "Topfixed"]  # From bottom to top, should match category in csv
+          "Ball",
+          "Emoticon"]  # From bottom to top, should match category in csv
 components = []
 
 
@@ -47,16 +40,16 @@ def main():
     csv_filename = "data.csv"
     csv_data = read_csv(csv_filename)
     components = [component_from_csv_row(row) for row in csv_data]
-    generate_count = 3
+    generate_count = 75
     generate_dir = "./generated/"
     filter_count = sum(x.count for x in list(filter(lambda component: component.limit != '' and component.count > 0, components)))
-    token_id = range(generate_count)
+    token_id = list(range(generate_count))
     random.shuffle(token_id)
     for token_id_idx in range(filter_count):
         result_stack = [None] * len(layers)
         components_with_filter = list(filter(lambda component: component.limit != '' and component.count > 0, components))
         random_component = random.choice(components_with_filter)
-        layer_index = layer.index(random_component.category)
+        layer_index = layers.index(random_component.category)
         result_stack[layer_index] = random_component
         random_component.count = random_component.count - 1
         current_limit = random_component.limit
@@ -66,16 +59,16 @@ def main():
         for layer in limited_layers:
             components_with_mark_layer = list(filter(lambda component: component.mark == current_limit and component.category == layer and component.count > 0, components))
             random_component = random.choice(components_with_mark_layer)
-            layer_index = layer.index(random_component.category)
+            layer_index = layers.index(random_component.category)
             result_stack[layer_index] = random_component
             random_component.count = random_component.count - 1
         
         for idx, layer in enumerate(result_stack):
             if layer is None:
                 current_layer = layers[idx]
-                components_layer = list(filter(lambda component: component.category == layer and component.count > 0, components))
+                components_layer = list(filter(lambda component: component.category == current_layer and component.count > 0, components))
                 random_component = random.choice(components_layer)
-                layer_index = layer.index(random_component.category)
+                layer_index = layers.index(random_component.category)
                 result_stack[layer_index] = random_component
                 random_component.count = random_component.count - 1
         
@@ -83,18 +76,18 @@ def main():
         attributes = []
         for component in result_stack:
             attributes.append({"trait_type": component.type_json, "value": component.value_json})
-            # foreground = Image.open(component.filepath)
-            # image = add_png(foreground, image, component.mode)
+            foreground = Image.open(component.filepath)
+            image = add_png(foreground, image, component.mode)
         current_token_id = token_id[token_id_idx]
-        # image.save(generate_dir + str(current_token_id) + ".png", format="PNG")
+        image.save(generate_dir + str(current_token_id) + ".png", format="PNG")
         data = {
             "name": "Whatever #" + str(current_token_id),
             "image": "images/" + str(current_token_id) + ".png",
             "attributes": attributes
         }
-        # with open(generate_dir + str(current_token_id), "w") as f:
-        #     json.dump(data, f, ensure_ascii=False)
-        print(token_id, " generated. ", data)
+        with open(generate_dir + str(current_token_id), "w") as f:
+            json.dump(data, f, ensure_ascii=False)
+        print(current_token_id, " generated. ", data)
     
     remaining_count = generate_count - filter_count
     for token_id_idx in range(remaining_count):
@@ -102,9 +95,9 @@ def main():
         for idx, layer in enumerate(result_stack):
             if layer is None:
                 current_layer = layers[idx]
-                components_layer = list(filter(lambda component: component.category == layer and component.count > 0, components))
+                components_layer = list(filter(lambda component: component.category == current_layer and component.count > 0, components))
                 random_component = random.choice(components_layer)
-                layer_index = layer.index(random_component.category)
+                layer_index = layers.index(random_component.category)
                 result_stack[layer_index] = random_component
                 random_component.count = random_component.count - 1
 
@@ -112,18 +105,18 @@ def main():
         attributes = []
         for component in result_stack:
             attributes.append({"trait_type": component.type_json, "value": component.value_json})
-            # foreground = Image.open(component.filepath)
-            # image = add_png(foreground, image, component.mode)
+            foreground = Image.open(component.filepath)
+            image = add_png(foreground, image, component.mode)
         current_token_id = token_id[filter_count + token_id_idx]
-        # image.save(generate_dir + str(current_token_id) + ".png", format="PNG")
+        image.save(generate_dir + str(current_token_id) + ".png", format="PNG")
         data = {
             "name": "Whatever #" + str(current_token_id),
             "image": "images/" + str(current_token_id) + ".png",
             "attributes": attributes
         }
-        # with open(generate_dir + str(current_token_id), "w") as f:
-        #     json.dump(data, f, ensure_ascii=False)
-        print(token_id, " generated. ", data)
+        with open(generate_dir + str(current_token_id), "w") as f:
+            json.dump(data, f, ensure_ascii=False)
+        print(current_token_id, " generated. ", data)
 
 
 
