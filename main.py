@@ -3,7 +3,8 @@ from PIL import Image
 from dataclasses import dataclass
 import random
 import json
-
+import numpy
+from blend_modes import screen
 
 @dataclass
 class Component:
@@ -156,7 +157,16 @@ def add_png(foreground, background, mode=None):
     background = background.convert('RGBA')
     output = Image.new('RGBA', background.size)
     output = Image.alpha_composite(output, background)
-    output = Image.alpha_composite(output, foreground)
+    if mode == 'screen':
+        current_background = numpy.array(output)
+        current_background = current_background.astype(float)
+        current_foreground = numpy.array(foreground)
+        current_foreground = current_foreground.astype(float)
+        screen_result = screen(current_background, current_foreground)
+        screen_result = numpy.uint8(screen_result)
+        output = Image.fromarray(screen_result)
+    else:
+        output = Image.alpha_composite(output, foreground)
     return output
 
 
