@@ -5,6 +5,8 @@ import random
 import json
 import numpy
 from blend_modes import screen
+import asyncio
+
 
 @dataclass
 class Component:
@@ -19,11 +21,11 @@ class Component:
     mode = None
 
 
-description = "This is a description"
-layers = ["Background",
-          "Ball",
-          "Emoticon"]  # From bottom to top, should match category in csv
-components = []
+def background(f):
+    def wrapped(*args, **kwargs):
+        return asyncio.get_event_loop().run_in_executor(None, f, *args, **kwargs)
+
+    return wrapped
 
 
 def read_csv(filename):
@@ -34,89 +36,137 @@ def read_csv(filename):
         return data_read
 
 
+def get_components_and_layer_names(csv_data):
+    components = []
+    layers = []
+    for row in csv_data:
+        component = component_from_csv_row(row)
+        if component.category not in layers:
+            layers.append(component.category)
+        components.append(component)
+    return components, layers
+
+
 def main():
     global components
     global description
     csv_filename = "data.csv"
     csv_data = read_csv(csv_filename)
-    components = [component_from_csv_row(row) for row in csv_data]
-    generate_count = 75
-    generate_dir = "./generated/"
+    components, layer_names = get_components_and_layer_names(csv_data)
+    generate_count = sum(x.count for x in list(filter(lambda x: x.category == layer_names[0], components)))
+    # generate_dir = "./generated/"
+    generate_dir = "./generated/bricks/"
     filter_count = sum(x.count for x in list(filter(lambda component: component.limit != '' and component.count > 0, components)))
-    token_id = list(range(generate_count))
-    random.shuffle(token_id)
-    for token_id_idx in range(filter_count):
-        result_stack = [None] * len(layers)
+    print("filter_items: {}".format(filter_count))
+    retry_limit = 30
+    current_index = 0
+    result_array = []
+    result_set_array = []
+    retry_count = 0
+    while current_index < filter_count:
+        temp_result_stack = [None] * len(layer_names)
         components_with_filter = list(filter(lambda component: component.limit != '' and component.count > 0, components))
-        random_component = random.choice(components_with_filter)
-        layer_index = layers.index(random_component.category)
-        result_stack[layer_index] = random_component
-        random_component.count = random_component.count - 1
-        current_limit = random_component.limit
-        current_layer = random_component.category
+        filter_component = random.choice(components_with_filter)
+        filter_component_layer_index = layer_names.index(filter_component.category)
+        temp_result_stack[filter_component_layer_index] = filter_component
+
+        current_limit = filter_component.limit
+        current_layer = filter_component.category
         components_with_mark = list(filter(lambda component: component.mark == current_limit and component.category != current_layer and component.count > 0, components))
         limited_layers = list(set([x.category for x in components_with_mark]))
         for layer in limited_layers:
             components_with_mark_layer = list(filter(lambda component: component.mark == current_limit and component.category == layer and component.count > 0, components))
             random_component = random.choice(components_with_mark_layer)
-            layer_index = layers.index(random_component.category)
-            result_stack[layer_index] = random_component
-            random_component.count = random_component.count - 1
+            layer_index = layer_names.index(random_component.category)
+            temp_result_stack[layer_index] = random_component
         
-        for idx, layer in enumerate(result_stack):
+        for idx, layer in enumerate(temp_result_stack):
             if layer is None:
-                current_layer = layers[idx]
+                current_layer = layer_names[idx]
                 components_layer = list(filter(lambda component: component.category == current_layer and component.count > 0, components))
                 random_component = random.choice(components_layer)
-                layer_index = layers.index(random_component.category)
-                result_stack[layer_index] = random_component
-                random_component.count = random_component.count - 1
+                layer_index = layer_names.index(random_component.category)
+                temp_result_stack[layer_index] = random_component
         
-        image = None
-        attributes = []
-        for component in result_stack:
-            attributes.append({"trait_type": component.type_json, "value": component.value_json})
-            foreground = Image.open(component.filepath)
-            image = add_png(foreground, image, component.mode)
-        current_token_id = token_id[token_id_idx]
-        image.save(generate_dir + str(current_token_id) + ".png", format="PNG")
-        data = {
-            "name": "Whatever #" + str(current_token_id),
-            "image": "images/" + str(current_token_id) + ".png",
-            "attributes": attributes
-        }
-        with open(generate_dir + str(current_token_id), "w") as f:
-            json.dump(data, f, ensure_ascii=False)
-        print(current_token_id, " generated. ", data)
-    
-    remaining_count = generate_count - filter_count
-    for token_id_idx in range(remaining_count):
-        result_stack = [None] * len(layers)
-        for idx, layer in enumerate(result_stack):
-            if layer is None:
-                current_layer = layers[idx]
-                components_layer = list(filter(lambda component: component.category == current_layer and component.count > 0, components))
-                random_component = random.choice(components_layer)
-                layer_index = layers.index(random_component.category)
-                result_stack[layer_index] = random_component
-                random_component.count = random_component.count - 1
+        temp_result_set = set(list(map(lambda x: x.item, temp_result_stack)))
+        if temp_result_set not in result_set_array:
+            for component in temp_result_stack:
+                # components[components.index(component)].count -= 1
+                component.count -= 1
+            result_set_array.append(temp_result_set)
+            result_array.append(temp_result_stack)
+            current_index += 1
+            retry_count = 0
+            if current_index % 10 == 0:
+                print("{}/{}".format(current_index, filter_count))
+        else:
+            if retry_count > retry_limit:
+                current_index += 1
+                retry_count = 0
+            else:
+                retry_count += 1
 
+    remaining_count = generate_count - filter_count
+    print("remaining count: {}".format(remaining_count))
+    current_index = 0
+    retry_count = 0
+    while current_index < remaining_count:
+        temp_result_stack = [None] * len(layer_names)
+        for idx, layer in enumerate(temp_result_stack):
+            if layer is None:
+                current_layer = layer_names[idx]
+                components_layer = list(filter(lambda component: component.category == current_layer and component.count > 0, components))
+                random_component = random.choice(components_layer)
+                layer_index = layer_names.index(random_component.category)
+                temp_result_stack[layer_index] = random_component
+        
+        temp_result_set = set(list(map(lambda x: x.item, temp_result_stack)))
+        if temp_result_set not in result_set_array:
+            for component in temp_result_stack:
+                # components[components.index(component)].count -= 1
+                component.count -= 1
+            result_set_array.append(temp_result_set)
+            result_array.append(temp_result_stack)
+            current_index += 1
+            retry_count = 0
+            if current_index % 100 == 0:
+                print("{}/{}".format(current_index, remaining_count))
+        else:
+            if retry_count > retry_limit:
+                current_index += 1
+                retry_count = 0
+            else:
+                retry_count += 1
+
+
+    actual_gen_count = len(result_array)
+    token_id = list(range(actual_gen_count))
+    random.shuffle(token_id)
+
+    @background
+    def process_stack(idx, result_stack):
         image = None
         attributes = []
         for component in result_stack:
             attributes.append({"trait_type": component.type_json, "value": component.value_json})
             foreground = Image.open(component.filepath)
             image = add_png(foreground, image, component.mode)
-        current_token_id = token_id[filter_count + token_id_idx]
+        current_token_id = token_id[idx]
         image.save(generate_dir + str(current_token_id) + ".png", format="PNG")
         data = {
-            "name": "Whatever #" + str(current_token_id),
+            "name": "Bubble #" + str(current_token_id),
             "image": "images/" + str(current_token_id) + ".png",
             "attributes": attributes
         }
         with open(generate_dir + str(current_token_id), "w") as f:
             json.dump(data, f, ensure_ascii=False)
         print(current_token_id, " generated. ", data)
+
+    for idx, result_stack in enumerate(result_array):
+        process_stack(idx, result_stack)
+
+    print("actual generated: {} in a limit of {} retries.".format(actual_gen_count, retry_limit))
+
 
 
 
