@@ -53,10 +53,11 @@ def main():
     csv_filename = "data.csv"
     csv_data = read_csv(csv_filename)
     components, layer_names = get_components_and_layer_names(csv_data)
+    print(layer_names)
     generate_count = sum(x.count for x in list(filter(lambda x: x.category == layer_names[0], components)))
     # generate_dir = "./generated/"
     generate_dir = "./generated/sun-by-mountain/"
-    filter_count = sum(x.count for x in list(filter(lambda component: component.limit != '' and component.count > 0, components)))
+    filter_count = sum(x.count for x in list(filter(lambda component: component.limit != '' and component.mark == '' and component.count > 0, components)))
     print("filter_items: {}".format(filter_count))
     retry_limit = 30
     current_index = 0
@@ -65,21 +66,31 @@ def main():
     retry_count = 0
     while current_index < filter_count:
         temp_result_stack = [None] * len(layer_names)
-        components_with_filter = list(filter(lambda component: component.limit != '' and component.count > 0, components))
+        components_with_filter = list(filter(lambda component: component.limit != '' and component.mark == '' and component.count > 0, components))
         filter_component = random.choice(components_with_filter)
         filter_component_layer_index = layer_names.index(filter_component.category)
         temp_result_stack[filter_component_layer_index] = filter_component
 
         current_limit = filter_component.limit
         current_layer = filter_component.category
+        components_with_mark_has_filter = list(filter(lambda component: component.mark == current_limit and component.limit != '' and component.category != current_layer and component.count > 0, components))
+        if len(components_with_mark_has_filter) > 0:
+            random_component = random.choice(components_with_mark_has_filter)
+            layer_index = layer_names.index(random_component.category)
+            temp_result_stack[layer_index] = random_component
+            current_limit = random_component.limit
+
+
         components_with_mark = list(filter(lambda component: component.mark == current_limit and component.category != current_layer and component.count > 0, components))
         limited_layers = list(set([x.category for x in components_with_mark]))
         for layer in limited_layers:
-            components_with_mark_layer = list(filter(lambda component: component.mark == current_limit and component.category == layer and component.count > 0, components))
-            random_component = random.choice(components_with_mark_layer)
-            layer_index = layer_names.index(random_component.category)
-            temp_result_stack[layer_index] = random_component
-        
+            if temp_result_stack[layer_names.index(layer)] is None:
+                components_with_mark_layer = list(filter(lambda component: component.mark == current_limit and component.category == layer and component.count > 0, components))
+                random_component = random.choice(components_with_mark_layer)
+                layer_index = layer_names.index(random_component.category)
+                temp_result_stack[layer_index] = random_component
+
+
         for idx, layer in enumerate(temp_result_stack):
             if layer is None:
                 current_layer = layer_names[idx]
@@ -92,6 +103,8 @@ def main():
         if temp_result_set not in result_set_array:
             for component in temp_result_stack:
                 # components[components.index(component)].count -= 1
+                if component.limit != '' and component.mark == '':
+                    filter_count -= 1
                 component.count -= 1
             result_set_array.append(temp_result_set)
             result_array.append(temp_result_stack)
@@ -106,7 +119,7 @@ def main():
             else:
                 retry_count += 1
 
-    remaining_count = generate_count - filter_count
+    remaining_count = generate_count - len(result_array)
     print("remaining count: {}".format(remaining_count))
     current_index = 0
     retry_count = 0
@@ -162,8 +175,8 @@ def main():
             json.dump(data, f, ensure_ascii=False)
         print(current_token_id, " generated. ", data)
 
-    for idx, result_stack in enumerate(result_array):
-        process_stack(idx, result_stack)
+    # for idx, result_stack in enumerate(result_array):
+    #     process_stack(idx, result_stack)
 
     print("actual generated: {} in a limit of {} retries.".format(actual_gen_count, retry_limit))
 
