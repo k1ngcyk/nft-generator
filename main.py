@@ -56,7 +56,7 @@ def main():
     print(layer_names)
     generate_count = sum(x.count for x in list(filter(lambda x: x.category == layer_names[0], components)))
     # generate_dir = "./generated/"
-    generate_dir = "./generated/sun-by-mountain/"
+    generate_dir = "./generated/"
     filter_count = sum(x.count for x in list(filter(lambda component: component.limit != '' and component.mark == '' and component.count > 0, components)))
     print("filter_items: {}".format(filter_count))
     retry_limit = 30
@@ -94,30 +94,40 @@ def main():
         for idx, layer in enumerate(temp_result_stack):
             if layer is None:
                 current_layer = layer_names[idx]
-                components_layer = list(filter(lambda component: component.category == current_layer and component.count > 0, components))
+                components_layer = list(filter(lambda component: component.category == current_layer and (component.limit == current_limit or component.limit == '') and component.count > 0, components))
+                if not len(components_layer) > 0:
+                    continue
                 random_component = random.choice(components_layer)
                 layer_index = layer_names.index(random_component.category)
                 temp_result_stack[layer_index] = random_component
         
-        temp_result_set = set(list(map(lambda x: x.item, temp_result_stack)))
-        if temp_result_set not in result_set_array:
-            for component in temp_result_stack:
-                # components[components.index(component)].count -= 1
-                if component.limit != '' and component.mark == '':
-                    filter_count -= 1
-                component.count -= 1
-            result_set_array.append(temp_result_set)
-            result_array.append(temp_result_stack)
-            current_index += 1
-            retry_count = 0
-            if current_index % 10 == 0:
-                print("{}/{}".format(current_index, filter_count))
+        if temp_result_stack.count(None) == 0:
+            temp_result_set = set(list(map(lambda x: x.item, temp_result_stack)))
+            if temp_result_set not in result_set_array:
+                for component in temp_result_stack:
+                    # components[components.index(component)].count -= 1
+                    if component.limit != '' and component.mark == '':
+                        filter_count -= 1
+                    component.count -= 1
+                result_set_array.append(temp_result_set)
+                result_array.append(temp_result_stack)
+                current_index += 1
+                retry_count = 0
+                if current_index % 10 == 0:
+                    print("{}/{}".format(current_index, filter_count))
+            else:
+                if retry_count > retry_limit:
+                    current_index += 1
+                    retry_count = 0
+                else:
+                    retry_count += 1
         else:
             if retry_count > retry_limit:
                 current_index += 1
                 retry_count = 0
             else:
                 retry_count += 1
+
 
     remaining_count = generate_count - len(result_array)
     print("remaining count: {}".format(remaining_count))
@@ -162,12 +172,15 @@ def main():
         attributes = []
         for component in result_stack:
             attributes.append({"trait_type": component.type_json, "value": component.value_json})
-            foreground = Image.open(component.filepath)
-            image = add_png(foreground, image, component.mode)
+            try:
+                foreground = Image.open(component.filepath)
+                image = add_png(foreground, image, component.mode)
+            except:
+                print(component.filepath)
         current_token_id = token_id[idx]
         image.save(generate_dir + str(current_token_id) + ".png", format="PNG")
         data = {
-            "name": "Bubble #" + str(current_token_id),
+            "name": "Observers #" + str(current_token_id),
             "image": "images/" + str(current_token_id) + ".png",
             "attributes": attributes
         }
@@ -175,8 +188,8 @@ def main():
             json.dump(data, f, ensure_ascii=False)
         print(current_token_id, " generated. ", data)
 
-    # for idx, result_stack in enumerate(result_array):
-    #     process_stack(idx, result_stack)
+    for idx, result_stack in enumerate(result_array):
+        process_stack(idx, result_stack)
 
     print("actual generated: {} in a limit of {} retries.".format(actual_gen_count, retry_limit))
 
