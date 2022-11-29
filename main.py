@@ -55,7 +55,7 @@ def main():
     components, layer_names = get_components_and_layer_names(csv_data)
     generate_count = sum(x.count for x in list(filter(lambda x: x.category == layer_names[0], components)))
     # generate_dir = "./generated/"
-    generate_dir = "./generated/bricks/"
+    generate_dir = "./generated/sun-by-mountain/"
     filter_count = sum(x.count for x in list(filter(lambda component: component.limit != '' and component.count > 0, components)))
     print("filter_items: {}".format(filter_count))
     retry_limit = 30

@@ -1,25 +1,36 @@
 import json
 import os
+from pathlib import Path
 
 
 def main():
     # dirs = ["3d-text", "blackhole", "bricks", "cluster", "glass-ball", "snipper", "sun-by-mountain"]
-    dirs = ["blackhole", "bricks", "cluster", "glass-ball", "snipper", "sun-by-mountain"]
+    dirs = ["1of1", "3d-text", "blackhole", "bricks", "cluster", "glass-ball", "seal", "snipper", "sun-by-mountain"]
     total_count = 0
     total_repeat = 0
     for dir_to_check in dirs:
-        print(dir_to_check, ":")
+        print("Checking {}:".format(dir_to_check))
         values = []
         check_dir = "./generated/{}/".format(dir_to_check)
-        file_count = len([name for name in os.listdir(check_dir)])
+        p = Path(check_dir).glob('**/*')
+        files = [x for x in p if x.is_file()]
+        for path in files:
+            if str(path).lower().endswith(".json"):
+                os.rename(path, path.with_suffix(""))
+        p = Path(check_dir).glob('**/*')
+        files = [x.stem for x in p if x.is_file() and len(x.suffixes) == 0]
+        file_count = len(files)
         total_count += file_count
-        for token_id in range(file_count):
-            with open(check_dir + str(token_id), "r") as f:
-                data = json.load(f)
+        for filename in files:
+            with open(check_dir + filename, "r") as f:
+                try:
+                    data = json.load(f)
+                except:
+                    print(filename)
                 attributes = data["attributes"]
                 value_set = set(list(map(lambda attr: attr["value"], attributes)))
                 if value_set in values:
-                    print(token_id, 'repeat with', values.index(value_set), value_set)
+                    print(filename, 'repeat with', values.index(value_set), value_set)
                     values.append(None)
                 else:
                     values.append(value_set)
