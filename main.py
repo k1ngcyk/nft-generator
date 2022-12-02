@@ -54,110 +54,69 @@ def main():
     csv_data = read_csv(csv_filename)
     components, layer_names = get_components_and_layer_names(csv_data)
     print(layer_names)
+    for layer in layer_names:
+        generate_count = sum(x.count for x in list(filter(lambda x: x.category == layer, components)))
+        print(generate_count)
     generate_count = sum(x.count for x in list(filter(lambda x: x.category == layer_names[0], components)))
-    # generate_dir = "./generated/"
-    generate_dir = "./generated/"
-    filter_count = sum(x.count for x in list(filter(lambda component: component.limit != '' and component.mark == '' and component.count > 0, components)))
-    print("filter_items: {}".format(filter_count))
+    generate_dir = "./generated_test/"
     retry_limit = 30
     current_index = 0
     result_array = []
     result_set_array = []
     retry_count = 0
-    while current_index < filter_count:
+    while True:
         temp_result_stack = [None] * len(layer_names)
-        components_with_filter = list(filter(lambda component: component.limit != '' and component.mark == '' and component.count > 0, components))
-        filter_component = random.choice(components_with_filter)
-        filter_component_layer_index = layer_names.index(filter_component.category)
-        temp_result_stack[filter_component_layer_index] = filter_component
-
-        current_limit = filter_component.limit
-        current_layer = filter_component.category
-        components_with_mark_has_filter = list(filter(lambda component: component.mark == current_limit and component.limit != '' and component.category != current_layer and component.count > 0, components))
-        if len(components_with_mark_has_filter) > 0:
-            random_component = random.choice(components_with_mark_has_filter)
-            layer_index = layer_names.index(random_component.category)
-            temp_result_stack[layer_index] = random_component
-            current_limit = random_component.limit
-
-
-        components_with_mark = list(filter(lambda component: component.mark == current_limit and component.category != current_layer and component.count > 0, components))
-        limited_layers = list(set([x.category for x in components_with_mark]))
-        for layer in limited_layers:
-            if temp_result_stack[layer_names.index(layer)] is None:
-                components_with_mark_layer = list(filter(lambda component: component.mark == current_limit and component.category == layer and component.count > 0, components))
-                random_component = random.choice(components_with_mark_layer)
-                layer_index = layer_names.index(random_component.category)
-                temp_result_stack[layer_index] = random_component
-
-
-        for idx, layer in enumerate(temp_result_stack):
-            if layer is None:
-                current_layer = layer_names[idx]
-                components_layer = list(filter(lambda component: component.category == current_layer and (component.limit == current_limit or component.limit == '') and component.count > 0, components))
-                if not len(components_layer) > 0:
-                    continue
-                random_component = random.choice(components_layer)
-                layer_index = layer_names.index(random_component.category)
-                temp_result_stack[layer_index] = random_component
+        current_marks = []
+        current_limits = []
+        for layer_name in layer_names:
+            available_components = []
+            if len(current_limits) > 0:
+                available_components = list(filter(lambda x: x.limit in current_limits and x.category == layer_name and x.count > 0, components))
+                if len(available_components) == 0:
+                    available_components = list(filter(lambda x: x.limit == '' and x.mark in current_marks and x.category == layer_name and x.count > 0, components))
+                    if len(available_components) == 0:
+                        available_components = list(filter(lambda x: x.limit == '' and x.category == layer_name and x.count > 0, components))
+            else:
+                available_components = list(filter(lambda x: x.limit in current_marks and x.category == layer_name and x.count > 0, components))
+                if len(available_components) == 0:
+                    available_components = list(filter(lambda x: x.limit == '' and x.mark in current_marks and x.category == layer_name and x.count > 0, components))
+                    if len(available_components) == 0:
+                        available_components = list(filter(lambda x: x.limit == '' and x.category == layer_name and x.count > 0, components))
+            if "headnull" in current_limits:
+                print(current_limits, current_marks, layer_name, available_components)
+            if len(available_components) == 0:
+                continue
+            component = random.choice(available_components)
+            layer_index = layer_names.index(layer_name)
+            temp_result_stack[layer_index] = component
+            if component.limit != '':
+                current_limits.append(component.limit)
+                current_limits = list(set(current_limits))
+            if component.mark != '':
+                current_marks.append(component.mark)
+                current_marks = list(set(current_marks))
         
         if temp_result_stack.count(None) == 0:
             temp_result_set = set(list(map(lambda x: x.item, temp_result_stack)))
             if temp_result_set not in result_set_array:
                 for component in temp_result_stack:
-                    # components[components.index(component)].count -= 1
-                    if component.limit != '' and component.mark == '':
-                        filter_count -= 1
                     component.count -= 1
                 result_set_array.append(temp_result_set)
                 result_array.append(temp_result_stack)
                 current_index += 1
                 retry_count = 0
                 if current_index % 10 == 0:
-                    print("{}/{}".format(current_index, filter_count))
+                    print("{}/{}".format(current_index, len(result_array)))
             else:
                 if retry_count > retry_limit:
-                    current_index += 1
                     retry_count = 0
+                    break
                 else:
                     retry_count += 1
         else:
             if retry_count > retry_limit:
-                current_index += 1
                 retry_count = 0
-            else:
-                retry_count += 1
-
-
-    remaining_count = generate_count - len(result_array)
-    print("remaining count: {}".format(remaining_count))
-    current_index = 0
-    retry_count = 0
-    while current_index < remaining_count:
-        temp_result_stack = [None] * len(layer_names)
-        for idx, layer in enumerate(temp_result_stack):
-            if layer is None:
-                current_layer = layer_names[idx]
-                components_layer = list(filter(lambda component: component.category == current_layer and component.count > 0, components))
-                random_component = random.choice(components_layer)
-                layer_index = layer_names.index(random_component.category)
-                temp_result_stack[layer_index] = random_component
-        
-        temp_result_set = set(list(map(lambda x: x.item, temp_result_stack)))
-        if temp_result_set not in result_set_array:
-            for component in temp_result_stack:
-                # components[components.index(component)].count -= 1
-                component.count -= 1
-            result_set_array.append(temp_result_set)
-            result_array.append(temp_result_stack)
-            current_index += 1
-            retry_count = 0
-            if current_index % 100 == 0:
-                print("{}/{}".format(current_index, remaining_count))
-        else:
-            if retry_count > retry_limit:
-                current_index += 1
-                retry_count = 0
+                break
             else:
                 retry_count += 1
 
